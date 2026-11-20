@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: ShellCheck'i hazırla
+        run: |
+          if ! command -v shellcheck >/dev/null; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q shellcheck
+          fi
+          shellcheck --version
+      - name: Sözdizimi ve ShellCheck
+        run: |
+          bash -n setup.sh
+          bash -n tests/render-test.sh
+          shellcheck -x setup.sh tests/render-test.sh
+
+  render:
+    name: Yapılandırma testi
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: compose.yaml ve nginx yapılandırmasını doğrula
+        env:
+          REQUIRE_DOCKER: "1"
+        run: bash tests/render-test.sh
+
+  samples:
+    name: Örnek API (${{ matrix.app }}, arm64)
+    needs: [lint, render]
+    # Hedef sunucuyla aynı ortam: Ubuntu 26.04, arm64
+    runs-on: ubuntu-26.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: deno-api, port: 8000 }
+          - { app: dotnet-api, port: 8080 }
+          - { app: go-api, port: 8081 }
+    steps:
+      - uses: actions/checkout@v6
+      - name: Dosyaları üret
+        env:
+          REQUIRE_DOCKER: "1"
+        run: bash tests/render-test.sh "$RUNNER_TEMP/out"
+      - name: İmajı derle
+        run: docker build -t sample "$RUNNER_TEMP/out/stack/apps/${{ matrix.app }}"
+      - name: /health uç noktasını dene
+        run: |
+          docker run -d --name sample -p "127.0.0.1:18000:${{ matrix.port }}" sample
+          curl -fsS --retry 30 --retry-delay 2 --retry-all-errors http://127.0.0.1:18000/health
+      - name: Konteyner logları
+        if: always()
+        run: docker logs sample 2>&1 || true

@@ -1,0 +1,15 @@
+# Parola ve anahtar içeren dosyalar bu repoya girmemeli
+.env
+*.env
+*.pem
+*.key
+
+# Yerel test çıktıları ve loglar
+/out/
+*.log
+
+# Editör ve işletim sistemi dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

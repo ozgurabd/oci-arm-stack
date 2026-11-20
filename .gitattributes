@@ -1,0 +1,3 @@
+# Tüm metin dosyaları LF satır sonuyla saklanır. Windows'ta CRLF'ye dönen bir
+# setup.sh, sunucuda "$'\r': command not found" hatasıyla çalışmaz.
+* text=auto eol=lf
